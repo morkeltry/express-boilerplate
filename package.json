@@ -5,6 +5,11 @@
   "main": "index.js",
   "dependencies": {
     "express": "^4.16.3",
+    "express-http-proxy": "^1.6.0",
+    "http": "0.0.1-security",
+    "http-proxy": "^1.18.0",
+    "node-fetch": "^2.6.0",
+    "node-http-proxy-json": "^0.1.9",
     "path": "^0.12.7",
     "serve-favicon": "^2.5.0"
   },
@@ -13,7 +18,8 @@
     "nodemon": "^1.18.4"
   },
   "scripts": {
-    "start": "nodemon src/index.js",
+    "start": "nodemon  --signal SIGHUP src/index.js",
+    "noexpress": "nodemon  --signal SIGHUP src/expressless-proxy.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "repository": {
