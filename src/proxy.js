@@ -13,6 +13,10 @@ const outputCollectedHeaders = ()=> {
   console.log(collectedHeaders);
 }
 
+let fuse=0;
+const contentIsHtml = ()=> !fuse++;
+
+
 function logReqRes(proxyReq, req, res) {
   console.log(proxyReq);
   console.log(req);
@@ -58,10 +62,17 @@ const handleOk = (proxyReq, proxyRes, res)=> {
     console.log(res);
     console.log(res.headers);
     console.log(res.headers.date);
-    collectedHeaders.push(res.headers.get('content-encoding'));
+    collectedHeaders.push([
+      res.url,
+      res.headers.get('content-encoding') || res.headers.get('content-type') ,
+
+    ]);
   console.log(':) -------------------------------------');
-  proxyRes.writeHead(200);
-  // proxyRes.write('request successfully proxied!' + '\n' + JSON.stringify(proxyReq.headers, true, 2));
+  if (contentIsHtml())
+    proxyRes.writeHead(200, {'Content-Type' : 'text/html;charset=UTF-8'})
+  else
+    proxyRes.writeHead(200);
+
   res.body
     .on('data', chunk=>{
       // console.log('chunk',chunk.length);
@@ -85,6 +96,7 @@ const handleError = (proxyReq, proxyRes, res)=> {
 
 const handleRedir = (proxyReq, proxyRes, res)=> {
   console.log(proxyReq, proxyRes, res);
+  console.log('Thassa redirect, yo!');
 }
 
 
@@ -93,12 +105,14 @@ const handleRedir = (proxyReq, proxyRes, res)=> {
 // NB fetch's auto redirect seems to work for now - moght need to change some headers, tho.
 const proxyFromScratch = async (proxyReq, proxyRes, next)=> {
   const options = {
-    method : 'POST',
+    // method : 'POST',
     // redirect : 'manual',
   }
   // console.log('req.url:',proxyReq.url);
   // console.log(Object.keys(proxyReq));
   // console.log('req:',trimreq(proxyReq));
+
+  options.headers = { ...options.headers, 'Accept-Encoding': 'identity', 'x-no-compression':true }
 
   await fetch (target+proxyReq.originalUrl, options)
     .then(res=> {
@@ -111,8 +125,11 @@ const proxyFromScratch = async (proxyReq, proxyRes, next)=> {
           break;
         case '4' : switch (status[1]) {
             case 400 : handleError(proxyReq, proxyRes, res);
-            case 400 : handleError(proxyReq, proxyRes, res);
-            case 400 : handleError(proxyReq, proxyRes, res);
+              break;
+            case 403 : handleError(proxyReq, proxyRes, res);
+              break;
+            case 404 : handleError(proxyReq, proxyRes, res);
+              break;
             default : handleError(proxyReq, proxyRes, res);
           }
           break;
