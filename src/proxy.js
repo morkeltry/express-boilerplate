@@ -3,19 +3,36 @@ const { createProxyMiddleware } = require('http-proxy-middleware');
 
 // const proxy = require('express-http-proxy');
 const { modifyResponse } = require ('node-http-proxy-json');
-
+const generateRandomToken = require('../doodle-generate-random');
 
 const target='http://doodle.com';
+const domainDoodle = 'doodle.com';
+const domainProxy = 'localhost';
+
 
 const collectedHeaders=[];
+let byStatusCode=[];
 let eventually;
 const outputCollectedHeaders = ()=> {
   console.log(collectedHeaders);
+  // if (byStatusCode.length>500)
+    console.log(byStatusCode.filter((e,i)=>i>=500));
 }
 
 let fuse=0;
 const contentIsHtml = ()=> !fuse++;
 
+const logByStatusCode = (code, data)=> {
+  if (!byStatusCode[code])
+    byStatusCode[code]=[];
+  byStatusCode[code].push(data);
+}
+
+const splitSetCookies = setCookiesString => {
+  const expiresRegex = /xpires\s?=[a-zA-Z]{1,3},\s?/gi
+  setCookiesString = setCookiesString.replace(expiresRegex, 'xpires = ');
+  return setCookiesString.split(/,\w*/);
+}
 
 function logReqRes(proxyReq, req, res) {
   console.log(proxyReq);
@@ -54,24 +71,36 @@ const myProxy = createProxyMiddleware({
 //   },
 // });
 
-const handleOk = (proxyReq, proxyRes, res)=> {
+const handleOk = (proxyReq, proxyRes, res, status)=> {
   let fileLength=0;
+  const contentType = res.headers.get('content-type')
+  console.log(res.headers.get('set-cookie'));
+  let cookies = splitSetCookies(
+    res.headers.get('set-cookie')
+      .replace(new RegExp(`.${domainDoodle}`, 'g'), domainProxy)
+      .replace(new RegExp(domainDoodle, 'g'), domainProxy)
+  );
+
   console.log('OK!!!-------------------------------------');
     // console.log(proxyReq);
-    // console.log(proxyRes);
-    console.log(res);
-    console.log(res.headers);
-    console.log(res.headers.date);
+    // // console.log(proxyRes);
+    // console.log(res);
+    // console.log(res.headers);
+    // console.log(res.headers.date);
+  console.log('Received cookies! ',cookies);
+  console.log('\n\n____________________________________');
+  console.log(proxyReq.method);
+  console.log('\n\n____________________________________');
     collectedHeaders.push([
       res.url,
-      res.headers.get('content-encoding') || res.headers.get('content-type') ,
+      res.headers.get('content-encoding') || contentType ,
 
     ]);
   console.log(':) -------------------------------------');
-  if (contentIsHtml())
-    proxyRes.writeHead(200, {'Content-Type' : 'text/html;charset=UTF-8'})
-  else
-    proxyRes.writeHead(200);
+
+  proxyRes.header ('Content-Type', contentType);
+  proxyRes.header ('Set-Cookie', cookies);
+  proxyRes.writeHead(200, {});
 
   res.body
     .on('data', chunk=>{
@@ -81,22 +110,30 @@ const handleOk = (proxyReq, proxyRes, res)=> {
     })
     // .pipe(proxyRes)
     .on('end', ()=>{
-      collectedHeaders.push(fileLength)
+      collectedHeaders.push(fileLength);
+      logByStatusCode(status, res.url);
       proxyRes.end();
     })
 
 
 }
 
-const handleError = (proxyReq, proxyRes, res)=> {
+const handleError = (proxyReq, proxyRes, res, status)=> {
   // console.log(proxyReq);
   // console.log(proxyRes);
   console.log(res);
+  logByStatusCode(status, res.url);
+
+  // set headers, eg Cloudflare
+
+  proxyRes.writeHead(200)
+  proxyRes.end();
 }
 
-const handleRedir = (proxyReq, proxyRes, res)=> {
-  console.log(proxyReq, proxyRes, res);
+const handleRedir = (proxyReq, proxyRes, res, status)=> {
+  // console.log(proxyReq, proxyRes, res);
   console.log('Thassa redirect, yo!');
+  logByStatusCode(status, res.url);
 }
 
 
@@ -104,7 +141,7 @@ const handleRedir = (proxyReq, proxyRes, res)=> {
 
 // NB fetch's auto redirect seems to work for now - moght need to change some headers, tho.
 const proxyFromScratch = async (proxyReq, proxyRes, next)=> {
-  const options = {
+  let options = {
     // method : 'POST',
     // redirect : 'manual',
   }
@@ -112,37 +149,56 @@ const proxyFromScratch = async (proxyReq, proxyRes, next)=> {
   // console.log(Object.keys(proxyReq));
   // console.log('req:',trimreq(proxyReq));
 
-  options.headers = { ...options.headers, 'Accept-Encoding': 'identity', 'x-no-compression':true }
+  options.headers = { ...options.headers,
+    'Accept-Encoding': 'identity', 'x-no-compression':true ,
+  };
+  if (proxyReq.method==='POST')
+    options = { ...options,
+      method: 'POST',
+      body : (proxyReq.url==='')
+              ? '{"accessToken":null,"anonymous":true}'
+              : ''
+    };
+
+  console.log('options',options);
+
+  console.log('\n\nWILL FETCH:');
+  console.log('proxyReq.url',proxyReq.url);
+  console.log('proxyReq.method',proxyReq.method);
+
 
   await fetch (target+proxyReq.originalUrl, options)
     .then(res=> {
+      console.log('proxyReq.url',proxyReq.url);
+      console.log('options.method',options.method);
+
       let status = [res.status.toString()[0], res.status]
       console.log(status);
       switch (status[0]) {
-        case '3' : handleRedir(proxyReq, proxyRes, res);
+        case '3' : handleRedir(proxyReq, proxyRes, res, status[1]);
           break;
-        case '2' : handleOk(proxyReq, proxyRes, res);
+        case '2' : handleOk(proxyReq, proxyRes, res, status[1]);
           break;
         case '4' : switch (status[1]) {
-            case 400 : handleError(proxyReq, proxyRes, res);
+            case 400 : handleError(proxyReq, proxyRes, res, status[1]);
               break;
-            case 403 : handleError(proxyReq, proxyRes, res);
+            case 403 : handleError(proxyReq, proxyRes, res, status[1]);
               break;
-            case 404 : handleError(proxyReq, proxyRes, res);
+            case 404 : handleError(proxyReq, proxyRes, res, status[1]);
               break;
-            default : handleError(proxyReq, proxyRes, res);
+            default : handleError(proxyReq, proxyRes, res, status[1]);
           }
           break;
-        case '5' : handleError(proxyReq, proxyRes, res);
+        case '5' : handleError(proxyReq, proxyRes, res, status[1]);
           break;
-        default : handleError(proxyReq, proxyRes, res);
+        default : handleError(proxyReq, proxyRes, res, status[1]);
       }
 
     })
     .catch(e=> {console.log(e);} )
 
     clearTimeout(eventually);
-    eventually = setTimeout (outputCollectedHeaders, 2000);
+    eventually = setTimeout (outputCollectedHeaders, 5000);
 
 
   return next();

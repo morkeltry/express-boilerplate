@@ -1,9 +1,11 @@
 {
-  "name": "express-boilerplate",
+  "name": "lunchcoin-doodle-proxy",
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
   "dependencies": {
+    "cookie-parser": "^1.4.5",
+    "event-stream": "3.3.4",
     "express": "^4.16.3",
     "express-http-proxy": "^1.6.0",
     "http": "0.0.1-security",
@@ -24,12 +26,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/morkeltry/express-boilerplate.git"
+    "url": "git+https://github.com/morkeltry/lunchcoin-doodle-proxy.git"
   },
   "author": "",
   "license": "ISC",
-  "bugs": {
-    "url": "https://github.com/morkeltry/express-boilerplate/issues"
-  },
-  "homepage": "https://github.com/morkeltry/express-boilerplate#readme"
+  "homepage": "https://lunchcoin.xyz"
 }
