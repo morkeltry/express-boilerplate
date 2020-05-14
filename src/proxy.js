@@ -10,13 +10,14 @@ const domainDoodle = 'doodle.com';
 const domainProxy = 'localhost';
 
 
-const collectedHeaders=[];
+const requestsLog=[];
 let byStatusCode=[];
 let eventually;
-const outputCollectedHeaders = ()=> {
-  console.log(collectedHeaders);
-  // if (byStatusCode.length>500)
-    console.log(byStatusCode.filter((e,i)=>i>=500));
+const outputCollectedLogs = ()=> {
+  console.log(requestsLog);
+
+  console.log(`400s: ${byStatusCode.filter((e,i)=>(i>=400 && i<500))}`);
+  console.log(`500s: ${byStatusCode.filter((e,i)=>i>=500)}`);
 }
 
 let fuse=0;
@@ -31,7 +32,7 @@ const logByStatusCode = (code, data)=> {
 const splitSetCookies = setCookiesString => {
   const expiresRegex = /xpires\s?=[a-zA-Z]{1,3},\s?/gi
   setCookiesString = setCookiesString.replace(expiresRegex, 'xpires = ');
-  return setCookiesString.split(/,\w*/);
+  return setCookiesString.split(/,\s*/);
 }
 
 function logReqRes(proxyReq, req, res) {
@@ -91,11 +92,12 @@ const handleOk = (proxyReq, proxyRes, res, status)=> {
   console.log('\n\n____________________________________');
   console.log(proxyReq.method);
   console.log('\n\n____________________________________');
-    collectedHeaders.push([
+    requestsLog.push([
       res.url,
       res.headers.get('content-encoding') || contentType ,
+      cookies.map (cookie=> cookie.slice(0, 20))
 
-    ]);
+    ]); 
   console.log(':) -------------------------------------');
 
   proxyRes.header ('Content-Type', contentType);
@@ -110,7 +112,7 @@ const handleOk = (proxyReq, proxyRes, res, status)=> {
     })
     // .pipe(proxyRes)
     .on('end', ()=>{
-      collectedHeaders.push(fileLength);
+      requestsLog.push(fileLength);
       logByStatusCode(status, res.url);
       proxyRes.end();
     })
@@ -198,7 +200,7 @@ const proxyFromScratch = async (proxyReq, proxyRes, next)=> {
     .catch(e=> {console.log(e);} )
 
     clearTimeout(eventually);
-    eventually = setTimeout (outputCollectedHeaders, 5000);
+    eventually = setTimeout (outputCollectedLogs, 5000);
 
 
   return next();
