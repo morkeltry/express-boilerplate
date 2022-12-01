@@ -20,7 +20,8 @@
     "nodemon": "^2.0.20"
   },
   "scripts": {
-    "start": "nodemon  --signal SIGHUP src/index.js",
+    "start": "node src/index.js",
+    "watch": "nodemon  --signal SIGHUP src/index.js",
     "noexpress": "nodemon  --signal SIGHUP src/expressless-proxy.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
